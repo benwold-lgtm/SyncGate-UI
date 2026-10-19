@@ -93,6 +93,14 @@ async def device_tools(hostname: str, request: Request) -> JSONResponse:
     return _passthrough(await relay_get(request, f"/devices/{hostname}/tools"))
 
 
+@router.get("/devices/{hostname}/features", dependencies=[_any])
+async def device_features(hostname: str, request: Request) -> JSONResponse:
+    # Tools, resources and prompts from the gateway's cached manifest — answers for a device
+    # whose pod is down, which /tools does not. The same endpoint `device-mcp devices show`
+    # reads, so the console and the CLI cannot disagree about a device.
+    return _passthrough(await relay_get(request, f"/devices/{hostname}/features"))
+
+
 @router.get("/devices/{hostname}/tools/diff", dependencies=[_any])
 async def device_tools_diff(hostname: str, request: Request) -> JSONResponse:
     # The device's most recent tool-set change (added/removed/changed + breaking),

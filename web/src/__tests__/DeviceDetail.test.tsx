@@ -4,20 +4,20 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Hoisted mocks so the api module factory can reference them.
-const { diagnostics, getDevice, tools, toolsDiff, deadLetters, approveFingerprint, invokeTool } = vi.hoisted(
-  () => ({
+const { diagnostics, getDevice, tools, features, toolsDiff, deadLetters, approveFingerprint, invokeTool } =
+  vi.hoisted(() => ({
     invokeTool: vi.fn(),
     diagnostics: vi.fn(),
     getDevice: vi.fn(),
     tools: vi.fn(),
+    features: vi.fn(),
     toolsDiff: vi.fn(),
     deadLetters: vi.fn(),
     approveFingerprint: vi.fn(),
-  }),
-);
+  }));
 
 vi.mock("../api", () => ({
-  api: { diagnostics, getDevice, tools, toolsDiff, deadLetters, approveFingerprint, invokeTool },
+  api: { diagnostics, getDevice, tools, features, toolsDiff, deadLetters, approveFingerprint, invokeTool },
   ApiError: class ApiError extends Error {
     constructor(
       public status: number,
@@ -86,11 +86,15 @@ describe("DeviceDetail", () => {
     diagnostics.mockReset();
     getDevice.mockReset();
     tools.mockReset();
+    features.mockReset();
     toolsDiff.mockReset();
     deadLetters.mockReset();
     approveFingerprint.mockReset();
     invokeTool.mockReset();
     getDevice.mockResolvedValue(DEVICE);
+    // Default: a gateway that predates /features, so the tests written against /tools keep
+    // exercising the fallback path. The /features tests below override this.
+    features.mockRejectedValue(new Error("404"));
     // Default: no recorded tool-set change (panel hidden). Individual tests override.
     toolsDiff.mockResolvedValue({ hostname: "sensor-1", tools_revision: 3, last_change: null });
     // Default: empty dead-letter queue (the DLQ panel mounts inside DeviceDetail).
@@ -238,5 +242,128 @@ describe("DeviceDetail", () => {
 
     await userEvent.setup().click(await screen.findByRole("button", { name: /get_readings/ }));
     expect(screen.getByRole("button", { name: /run get_readings/i })).toBeInTheDocument();
+  });
+});
+
+// GET /devices/{h}/features — the drill-down the CLI also reads.
+const FEATURES = {
+  hostname: "sensor-1",
+  upstream_kind: "openapi",
+  pod_active: true,
+  manifest_cached: true,
+  tools_revision: 3,
+  server: { name: "Sensor API", version: "1.2.0" },
+  discovered: { tools: true, resources: true, prompts: true },
+  tools: [
+    {
+      name: "get_readings",
+      description: "Read samples",
+      schema: { type: "object" },
+      source: "openapi",
+      method: "GET",
+      path: "/r",
+    },
+  ],
+  resources: [
+    {
+      uri: "device://sensor-1/status",
+      name: "status",
+      description: "Device status",
+      mime_type: "application/json",
+    },
+  ],
+  prompts: [
+    { name: "what_is_sensor", description: "Describe the sensor", template: "You are given…", arguments: [] },
+  ],
+};
+
+describe("DeviceDetail features", () => {
+  beforeEach(() => {
+    diagnostics.mockReset();
+    getDevice.mockReset();
+    tools.mockReset();
+    features.mockReset();
+    toolsDiff.mockReset();
+    deadLetters.mockReset();
+    getDevice.mockResolvedValue(DEVICE);
+    toolsDiff.mockResolvedValue({ hostname: "sensor-1", tools_revision: 3, last_change: null });
+    deadLetters.mockResolvedValue({ hostname: "sensor-1", count: 0, entries: [] });
+  });
+
+  it("shows tools, resources and prompts from /features, without calling /tools", async () => {
+    diagnostics.mockResolvedValue(DIAG);
+    features.mockResolvedValue(FEATURES);
+    render(<DeviceDetail hostname="sensor-1" canWrite={false} onClose={vi.fn()} />);
+
+    expect(await screen.findByText("Resources (1)")).toBeInTheDocument();
+    expect(screen.getByText("Tools (1)")).toBeInTheDocument();
+    expect(screen.getByText("Prompts (1)")).toBeInTheDocument();
+    expect(screen.getByText("get_readings")).toBeInTheDocument();
+    expect(screen.getByText("device://sensor-1/status")).toBeInTheDocument();
+    expect(screen.getByText("what_is_sensor")).toBeInTheDocument();
+    expect(screen.getByText(/Sensor API/)).toBeInTheDocument();
+    expect(screen.getByText(/cannot fetch prompts through the gateway yet/)).toBeInTheDocument();
+    expect(tools).not.toHaveBeenCalled();
+  });
+
+  it("lists a down device's tools from the manifest, but will not run them", async () => {
+    diagnostics.mockResolvedValue({ ...DIAG, pod_active: false, reachable: false });
+    features.mockResolvedValue({ ...FEATURES, pod_active: false });
+    render(<DeviceDetail hostname="sensor-1" canWrite={true} canInvoke onClose={vi.fn()} />);
+
+    expect(await screen.findByText(/Listed from the cached manifest/)).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: /get_readings/ }));
+    expect(screen.queryByRole("button", { name: /run get_readings/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/no active pod, so its tools cannot run right now/)).toBeInTheDocument();
+  });
+
+  it("says features are unknown, not empty, when nothing is cached", async () => {
+    diagnostics.mockResolvedValue({ ...DIAG, pod_active: false, has_manifest: false, tool_count: 0 });
+    features.mockResolvedValue({
+      ...FEATURES,
+      pod_active: false,
+      manifest_cached: false,
+      server: null,
+      tools: [],
+      resources: [],
+      prompts: [],
+    });
+    render(<DeviceDetail hostname="sensor-1" canWrite={false} onClose={vi.fn()} />);
+
+    expect(await screen.findByText(/unknown, not empty/)).toBeInTheDocument();
+    expect(screen.queryByText(/^Resources/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/exposes no tools/)).not.toBeInTheDocument();
+  });
+
+  it("marks a proxied MCP server's tools, and its resources and prompts as not discovered", async () => {
+    diagnostics.mockResolvedValue({ ...DIAG, upstream_kind: "mcp" });
+    features.mockResolvedValue({
+      ...FEATURES,
+      upstream_kind: "mcp",
+      server: { name: "reference-upstream", version: "1.0" },
+      discovered: { tools: true, resources: false, prompts: false },
+      tools: [
+        { name: "echo_message", description: "Echo", schema: {}, source: "proxy", method: "", path: "" },
+      ],
+      resources: [],
+      prompts: [],
+    });
+    render(<DeviceDetail hostname="sensor-1" canWrite={false} onClose={vi.fn()} />);
+
+    expect(await screen.findByText("(proxied)")).toBeInTheDocument();
+    expect(screen.getByText(/its resources are not listed/)).toBeInTheDocument();
+    expect(screen.getByText(/its prompts are not listed/)).toBeInTheDocument();
+    expect(screen.queryByText(/exposes no resources/)).not.toBeInTheDocument();
+  });
+
+  it("falls back to /tools against a gateway without /features", async () => {
+    diagnostics.mockResolvedValue(DIAG);
+    features.mockRejectedValue(new Error("404"));
+    tools.mockResolvedValue(TOOLS);
+    render(<DeviceDetail hostname="sensor-1" canWrite={false} onClose={vi.fn()} />);
+
+    expect(await screen.findByText("get_readings")).toBeInTheDocument();
+    expect(screen.queryByText(/^Resources/)).not.toBeInTheDocument();
+    expect(tools).toHaveBeenCalledWith("sensor-1");
   });
 });

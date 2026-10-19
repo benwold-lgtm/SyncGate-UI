@@ -14,6 +14,33 @@ While the project is `0.x`, **minor releases may include breaking changes.**
 > and `git log v0.1.1..v0.2.0` remains the detailed record. Later releases are recorded
 > as they happen.
 
+## [Unreleased]
+
+### Added
+
+- **Device detail shows a device's resources and prompts, not just its tools**, plus the
+  server name and version. Read from the gateway's new `GET /v1/devices/{h}/features` (via
+  `GET /api/devices/{h}/features`). It answers from the cached manifest, so a device whose pod
+  is down still shows what it offers. Its tools are listed and cannot be run until it serves
+  again. The view says which of three empty states applies: nothing cached (unknown), not
+  discovered (a proxied MCP server's resources and prompts are not collected), or none. It is the
+  same endpoint the gateway's `device-mcp devices show` reads, so console and CLI agree.
+- **Prompts carry a notice** that MCP clients cannot fetch them through the gateway yet. The
+  gateway records them but has no `prompts/list` handler, and the console should not imply
+  otherwise.
+
+### Changed
+
+- **The gateway contract snapshot (`web/gateway.openapi.json`) moves from 0.3.5 to the gateway's
+  current API**, adding `DeviceFeatures` and its parts. The type-check passed against it with no
+  other change.
+
+### Compatibility
+
+- Works against a gateway **without** `/features` (0.3.8 and earlier): the view falls back to
+  `/devices/{h}/tools`, which needs an active pod, and shows no resources or prompts. Full drill-down
+  needs the gateway release that adds `/features`.
+
 ## [0.2.0] - 2026-09-02
 
 Requires gateway **0.3.6**. The console tracks the gateway's contract, and this release is

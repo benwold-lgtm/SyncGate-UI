@@ -148,10 +148,40 @@ def test_tools_diff_proxies_gateway(app_client):
     assert seen == ["/devices/dev/tools/diff"]
 
 
+def test_features_proxies_gateway(app_client):
+    c, app = app_client
+    seen = []
+    payload = {
+        "hostname": "dev",
+        "upstream_kind": "openapi",
+        "pod_active": False,
+        "manifest_cached": True,
+        "tools_revision": 1,
+        "discovered": {"tools": True, "resources": True, "prompts": True},
+        "tools": [{"name": "t", "schema": {}}],
+        "resources": [{"uri": "device://dev/status", "name": "status"}],
+        "prompts": [{"name": "p"}],
+    }
+    app.state.gateway.get = _capture_get(seen, payload)
+    c.post("/auth/login", json={"password": "viewer-pw"})
+    resp = c.get("/api/devices/dev/features")
+    assert resp.status_code == 200
+    assert resp.json() == payload  # passed through untouched
+    assert seen == ["/devices/dev/features"]
+
+
+def test_features_passes_gateway_404_through(app_client):
+    c, app = app_client
+    app.state.gateway.get = _capture_get([], {"detail": "Device 'dev' not found"}, status=404)
+    c.post("/auth/login", json={"password": "viewer-pw"})
+    assert c.get("/api/devices/dev/features").status_code == 404
+
+
 def test_device_reads_require_session(app_client):
     c, _ = app_client
     assert c.get("/api/devices/dev/diagnostics").status_code == 401
     assert c.get("/api/devices/dev/tools").status_code == 401
+    assert c.get("/api/devices/dev/features").status_code == 401
     assert c.get("/api/devices/dev/tools/diff").status_code == 401
 
 

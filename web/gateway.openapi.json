@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Device MCP Gateway",
-    "version": "0.3.5"
+    "version": "0.3.8"
   },
   "paths": {
     "/health": {
@@ -334,6 +334,51 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ToolsDiffResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/devices/{hostname}/features": {
+      "get": {
+        "summary": "Get Device Features",
+        "description": "Everything a device exposes \u2014 tools, resources and prompts \u2014 for inspection.\n\nRead from the registry's cached manifest, so unlike ``/tools`` it answers for a device\nwhose pod is down: that is when an operator most needs to see what the device offers.\nThe UI and the ``device-mcp devices`` CLI both read this one endpoint, so they cannot\ndisagree about a device. ``discovered`` says which feature kinds were looked for at all\n(a proxied MCP server's resources and prompts are not, today).",
+        "operationId": "get_device_features_v1_devices__hostname__features_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "hostname",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Hostname"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceFeatures"
                 }
               }
             }
@@ -2151,6 +2196,78 @@
         "title": "DeviceDiagnostics",
         "description": "\"Why is my device down?\" \u2014 a single read combining registry status, the\nlast check, spec/manifest state, the spawn error, and the circuit breaker\n(F-52)."
       },
+      "DeviceFeatures": {
+        "properties": {
+          "hostname": {
+            "type": "string",
+            "title": "Hostname"
+          },
+          "upstream_kind": {
+            "type": "string",
+            "title": "Upstream Kind"
+          },
+          "pod_active": {
+            "type": "boolean",
+            "title": "Pod Active"
+          },
+          "manifest_cached": {
+            "type": "boolean",
+            "title": "Manifest Cached"
+          },
+          "tools_revision": {
+            "type": "integer",
+            "title": "Tools Revision"
+          },
+          "server": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ServerInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "discovered": {
+            "$ref": "#/components/schemas/FeatureDiscovery"
+          },
+          "tools": {
+            "items": {
+              "$ref": "#/components/schemas/FeatureTool"
+            },
+            "type": "array",
+            "title": "Tools",
+            "default": []
+          },
+          "resources": {
+            "items": {
+              "$ref": "#/components/schemas/FeatureResource"
+            },
+            "type": "array",
+            "title": "Resources",
+            "default": []
+          },
+          "prompts": {
+            "items": {
+              "$ref": "#/components/schemas/FeaturePrompt"
+            },
+            "type": "array",
+            "title": "Prompts",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "hostname",
+          "upstream_kind",
+          "pod_active",
+          "manifest_cached",
+          "tools_revision",
+          "discovered"
+        ],
+        "title": "DeviceFeatures",
+        "description": "Everything a device exposes \u2014 tools, resources and prompts \u2014 from the registry's\ncached manifest, with or without a running pod.\n\n``manifest_cached`` is ``False`` when there is no manifest to read: the device has never\nbeen discovered, or it has been down longer than the manifest cache lives. The lists are\nthen empty because nothing is known, not because the device has nothing."
+      },
       "DeviceListResponse": {
         "properties": {
           "devices": {
@@ -2256,6 +2373,128 @@
         "title": "DeviceSummary",
         "description": "Lean device projection for list/overview screens."
       },
+      "FeatureDiscovery": {
+        "properties": {
+          "tools": {
+            "type": "boolean",
+            "title": "Tools",
+            "default": true
+          },
+          "resources": {
+            "type": "boolean",
+            "title": "Resources",
+            "default": true
+          },
+          "prompts": {
+            "type": "boolean",
+            "title": "Prompts",
+            "default": true
+          }
+        },
+        "type": "object",
+        "title": "FeatureDiscovery",
+        "description": "Which feature kinds the gateway collects for this kind of device.\n\n``False`` means *not looked for*, not *none found* \u2014 an empty list beside ``False`` says\nnothing about the device. Today a proxied MCP server's tools are discovered but its\nresources and prompts are not; an OpenAPI device has all three derived from its spec."
+      },
+      "FeaturePrompt": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "template": {
+            "type": "string",
+            "title": "Template",
+            "default": ""
+          },
+          "arguments": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Arguments",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "FeaturePrompt",
+        "description": "A prompt template, with the argument names it takes."
+      },
+      "FeatureResource": {
+        "properties": {
+          "uri": {
+            "type": "string",
+            "title": "Uri"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "mime_type": {
+            "type": "string",
+            "title": "Mime Type",
+            "default": "application/json"
+          }
+        },
+        "type": "object",
+        "required": [
+          "uri",
+          "name"
+        ],
+        "title": "FeatureResource",
+        "description": "A read-only resource: ``resources/read`` on ``uri`` returns its content."
+      },
+      "FeatureTool": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "schema": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Schema"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "default": "openapi"
+          },
+          "method": {
+            "type": "string",
+            "title": "Method",
+            "default": ""
+          },
+          "path": {
+            "type": "string",
+            "title": "Path",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "FeatureTool",
+        "description": "One tool, as a device exposes it. ``schema`` is the tool's JSON input schema \u2014 the\nsame key ``/tools`` uses, so one client type reads both."
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -2332,6 +2571,25 @@
           "devices"
         ],
         "title": "OverviewResponse"
+      },
+      "ServerInfo": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "version"
+        ],
+        "title": "ServerInfo",
+        "description": "What the device says it is \u2014 never a name the gateway made up.\n\nAn OpenAPI device: its spec's ``info.title`` and ``info.version``. A proxied MCP server:\nthe ``serverInfo`` it sent on ``initialize``, as recorded on the device record\n(``declared_name``/``declared_version``). The manifest's own ``server_name`` is the\ngateway's ``mcp-{hostname}`` label for the server it *serves*, so it is not used here."
       },
       "TlsProfileInfo": {
         "properties": {
