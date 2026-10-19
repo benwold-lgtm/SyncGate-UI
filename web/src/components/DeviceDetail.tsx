@@ -1,7 +1,15 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../api";
-import type { DeviceFull, Diagnostics, Tool, ToolsDiff } from "../types";
+import type {
+  DeviceFeatures,
+  DeviceFull,
+  Diagnostics,
+  FeaturePrompt,
+  FeatureResource,
+  Tool,
+  ToolsDiff,
+} from "../types";
 import { DeadLetterPanel } from "./DeadLetterPanel";
 import { FingerprintPanel } from "./FingerprintPanel";
 import { NeedsReconnectBanner } from "./CredentialState";
@@ -9,9 +17,14 @@ import { ToolInvoke } from "./ToolInvoke";
 import { health, ui } from "../tokens";
 
 // Per-device detail: the gateway's diagnostics ("why is my device down?"), the endpoint
-// fingerprint (what the device *is*), and a tool explorer. Diagnostics is the source of
-// truth for health; the tool list is best-effort (the gateway returns 409 when there is
-// no active pod), so a down device still shows its diagnostics.
+// fingerprint (what the device *is*), and what the device exposes — its tools, resources
+// and prompts. Diagnostics is the source of truth for health.
+//
+// Features come from GET /devices/{h}/features, which reads the gateway's cached manifest
+// and so answers for a device whose pod is down — the case an operator most often opens this
+// view for. It is the same endpoint `device-mcp devices show` reads, so the console and the
+// CLI cannot disagree. Against an older gateway without it, the view falls back to /tools
+// (which needs an active pod) and shows no resources or prompts.
 //
 // The fingerprint fields live on the device record rather than on diagnostics, so this
 // view reads both.
@@ -36,6 +49,7 @@ export function DeviceDetail({
   const [diag, setDiag] = useState<Diagnostics | null>(null);
   const [device, setDevice] = useState<DeviceFull | null>(null);
   const [tools, setTools] = useState<Tool[] | null>(null);
+  const [features, setFeatures] = useState<DeviceFeatures | null>(null);
   const [diff, setDiff] = useState<ToolsDiff | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [openTool, setOpenTool] = useState<string | null>(null);
@@ -48,6 +62,7 @@ export function DeviceDetail({
     setDiag(null);
     setDevice(null);
     setTools(null);
+    setFeatures(null);
     setDiff(null);
     setError(null);
     setOpenTool(null);
@@ -59,10 +74,15 @@ export function DeviceDetail({
         (d) => d,
         () => null,
       ),
-      // Tools require an active pod; tolerate failure so diagnostics still render.
-      api.tools(hostname).then(
-        (t) => t.tools,
-        () => [],
+      // Features first; /tools only as a fallback for a gateway that predates /features.
+      // Both tolerated, so diagnostics always render.
+      api.features(hostname).then(
+        (f) => ({ features: f, tools: (f.tools ?? []).map(toTool) }),
+        () =>
+          api.tools(hostname).then(
+            (t) => ({ features: null, tools: t.tools }),
+            () => ({ features: null, tools: [] as Tool[] }),
+          ),
       ),
       // Governance — also best-effort; absence just hides the changes panel.
       api.toolsDiff(hostname).then(
@@ -70,11 +90,12 @@ export function DeviceDetail({
         () => null,
       ),
     ])
-      .then(([d, dev, t, df]) => {
+      .then(([d, dev, f, df]) => {
         if (!active) return;
         setDiag(d);
         setDevice(dev);
-        setTools(t);
+        setTools(f.tools);
+        setFeatures(f.features);
         setDiff(df);
       })
       .catch((err) => {
@@ -167,64 +188,206 @@ export function DeviceDetail({
             </p>
           )}
 
-          <h3 style={{ marginTop: 16 }}>Tools {tools ? `(${tools.length})` : ""}</h3>
-          {tools && tools.length === 0 && (
-            <p style={{ color: ui.muted }}>
-              No tools to show — the device has no active pod or cached manifest (see diagnostics above).
+          {features?.server && (
+            <p style={{ color: ui.inkSoft, fontSize: 13, marginTop: 16, marginBottom: 0 }}>
+              Server: <b>{features.server.name}</b> {features.server.version}
             </p>
           )}
-          {tools && tools.length > 0 && (
-            <ul style={{ listStyle: "none", padding: 0 }}>
-              {tools.map((t) => (
-                <li key={t.name} style={{ borderTop: `1px solid ${ui.rule}`, padding: "6px 0" }}>
-                  <button
-                    onClick={() => setOpenTool(openTool === t.name ? null : t.name)}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      padding: 0,
-                      textAlign: "left",
-                    }}
-                    aria-expanded={openTool === t.name}
-                  >
-                    <code style={{ fontWeight: 600 }}>{t.name}</code>{" "}
-                    <span style={{ color: ui.inkSoft, fontSize: 13 }}>
-                      {t.method} {t.path}
-                    </span>
-                  </button>
-                  {t.description && <div style={{ color: ui.inkSoft, fontSize: 13 }}>{t.description}</div>}
-                  {openTool === t.name && (
-                    <>
-                      <ToolInvoke hostname={hostname} tool={t} canInvoke={canInvoke} reason={invokeReason} />
-                      <details style={{ marginTop: 8 }}>
-                        <summary style={{ cursor: "pointer", fontSize: 12, color: ui.inkSoft }}>
-                          Schema
-                        </summary>
-                        <pre
-                          style={{
-                            background: "#fff",
-                            border: `1px solid ${ui.rule}`,
-                            padding: 8,
-                            overflowX: "auto",
-                            fontSize: 12,
-                            margin: "4px 0 0",
-                          }}
-                        >
-                          {JSON.stringify(t.schema, null, 2)}
-                        </pre>
-                      </details>
-                    </>
-                  )}
-                </li>
-              ))}
-            </ul>
+          {features && !features.manifest_cached ? (
+            <>
+              <h3 style={{ marginTop: 16 }}>Tools, resources and prompts</h3>
+              <p style={{ color: ui.muted }}>
+                Nothing is cached for this device yet — it has not been discovered, or has been down longer
+                than the manifest cache lives. Its tools, resources and prompts are unknown, not empty (see
+                diagnostics above).
+              </p>
+            </>
+          ) : (
+            <>
+              <h3 style={{ marginTop: 16 }}>Tools {tools ? `(${tools.length})` : ""}</h3>
+              {features && !diag.pod_active && tools && tools.length > 0 && (
+                <p style={{ color: ui.muted, fontSize: 13 }}>
+                  Listed from the cached manifest. The device is not serving right now, so its tools cannot be
+                  run.
+                </p>
+              )}
+              {tools && tools.length === 0 && (
+                <p style={{ color: ui.muted }}>
+                  {features
+                    ? "This device exposes no tools."
+                    : "No tools to show — the device has no active pod or cached manifest (see diagnostics above)."}
+                </p>
+              )}
+              {tools && tools.length > 0 && (
+                <ul style={{ listStyle: "none", padding: 0 }}>
+                  {tools.map((t) => (
+                    <li key={t.name} style={{ borderTop: `1px solid ${ui.rule}`, padding: "6px 0" }}>
+                      <button
+                        onClick={() => setOpenTool(openTool === t.name ? null : t.name)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          padding: 0,
+                          textAlign: "left",
+                        }}
+                        aria-expanded={openTool === t.name}
+                      >
+                        <code style={{ fontWeight: 600 }}>{t.name}</code>{" "}
+                        <span style={{ color: ui.inkSoft, fontSize: 13 }}>
+                          {t.method ? `${t.method} ${t.path}` : proxied(features, t.name) ? "(proxied)" : ""}
+                        </span>
+                      </button>
+                      {t.description && (
+                        <div style={{ color: ui.inkSoft, fontSize: 13 }}>{t.description}</div>
+                      )}
+                      {openTool === t.name && (
+                        <>
+                          <ToolInvoke
+                            hostname={hostname}
+                            tool={t}
+                            canInvoke={canInvoke && diag.pod_active}
+                            reason={
+                              canInvoke && !diag.pod_active
+                                ? "This device has no active pod, so its tools cannot run right now."
+                                : invokeReason
+                            }
+                          />
+                          <details style={{ marginTop: 8 }}>
+                            <summary style={{ cursor: "pointer", fontSize: 12, color: ui.inkSoft }}>
+                              Schema
+                            </summary>
+                            <pre
+                              style={{
+                                background: "#fff",
+                                border: `1px solid ${ui.rule}`,
+                                padding: 8,
+                                overflowX: "auto",
+                                fontSize: 12,
+                                margin: "4px 0 0",
+                              }}
+                            >
+                              {JSON.stringify(t.schema, null, 2)}
+                            </pre>
+                          </details>
+                        </>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {features && <Resources features={features} />}
+              {features && <Prompts features={features} />}
+            </>
           )}
         </>
       )}
 
       <DeadLetterPanel hostname={hostname} canWrite={canWrite} />
     </section>
+  );
+}
+
+// /features carries `schema` under the same key as /tools, so a feature tool is a Tool.
+function toTool(t: NonNullable<DeviceFeatures["tools"]>[number]): Tool {
+  return {
+    name: t.name,
+    description: t.description ?? "",
+    schema: t.schema ?? {},
+    method: t.method ?? "",
+    path: t.path ?? "",
+  };
+}
+
+// A proxied tool has no HTTP shape; say what it is rather than leaving the slot blank.
+function proxied(features: DeviceFeatures | null, name: string): boolean {
+  return (features?.tools ?? []).some((t) => t.name === name && t.source === "proxy");
+}
+
+// "Not looked for" is not "none found": the gateway collects only tools from a proxied MCP
+// server, and an empty list beside that would read as "this server has no resources".
+function NotDiscovered({ what }: { what: string }) {
+  return (
+    <p style={{ color: ui.muted, fontSize: 13 }}>
+      Not discovered — the gateway collects only tools from a proxied MCP server, so its {what} are not listed
+      here.
+    </p>
+  );
+}
+
+function Resources({ features }: { features: DeviceFeatures }) {
+  const list: FeatureResource[] = features.resources ?? [];
+  return (
+    <>
+      <h3 style={{ marginTop: 16 }}>Resources {features.discovered.resources ? `(${list.length})` : ""}</h3>
+      {!features.discovered.resources ? (
+        <NotDiscovered what="resources" />
+      ) : list.length === 0 ? (
+        <p style={{ color: ui.muted }}>This device exposes no resources.</p>
+      ) : (
+        <ul style={{ listStyle: "none", padding: 0 }}>
+          {list.map((r) => (
+            <li key={r.uri} style={{ borderTop: `1px solid ${ui.rule}`, padding: "6px 0" }}>
+              <code style={{ fontWeight: 600 }}>{r.name}</code>{" "}
+              <span style={{ color: ui.inkSoft, fontSize: 13 }}>
+                <code>{r.uri}</code> · {r.mime_type ?? "application/json"}
+              </span>
+              {r.description && <div style={{ color: ui.inkSoft, fontSize: 13 }}>{r.description}</div>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
+
+function Prompts({ features }: { features: DeviceFeatures }) {
+  const list: FeaturePrompt[] = features.prompts ?? [];
+  return (
+    <>
+      <h3 style={{ marginTop: 16 }}>Prompts {features.discovered.prompts ? `(${list.length})` : ""}</h3>
+      {!features.discovered.prompts ? (
+        <NotDiscovered what="prompts" />
+      ) : list.length === 0 ? (
+        <p style={{ color: ui.muted }}>This device exposes no prompts.</p>
+      ) : (
+        <>
+          {/* Known gateway gap: prompts are generated from the spec and recorded, but the MCP
+              router has no prompts/list yet — say so rather than imply a client can use them. */}
+          <p style={{ color: ui.muted, fontSize: 13 }}>
+            Generated from the device&apos;s spec. MCP clients cannot fetch prompts through the gateway yet.
+          </p>
+          <ul style={{ listStyle: "none", padding: 0 }}>
+            {list.map((pr) => (
+              <li key={pr.name} style={{ borderTop: `1px solid ${ui.rule}`, padding: "6px 0" }}>
+                <code style={{ fontWeight: 600 }}>{pr.name}</code>{" "}
+                <span style={{ color: ui.inkSoft, fontSize: 13 }}>
+                  {(pr.arguments ?? []).length ? `args: ${(pr.arguments ?? []).join(", ")}` : "no arguments"}
+                </span>
+                {pr.description && <div style={{ color: ui.inkSoft, fontSize: 13 }}>{pr.description}</div>}
+                {pr.template && (
+                  <details style={{ marginTop: 4 }}>
+                    <summary style={{ cursor: "pointer", fontSize: 12, color: ui.inkSoft }}>Template</summary>
+                    <pre
+                      style={{
+                        background: "#fff",
+                        border: `1px solid ${ui.rule}`,
+                        padding: 8,
+                        whiteSpace: "pre-wrap",
+                        fontSize: 12,
+                        margin: "4px 0 0",
+                      }}
+                    >
+                      {pr.template}
+                    </pre>
+                  </details>
+                )}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </>
   );
 }
 

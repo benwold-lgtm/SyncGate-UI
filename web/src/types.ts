@@ -13,6 +13,11 @@ export type Overview = Schemas["OverviewResponse"];
 export type DeviceMutation = Schemas["DeviceMutationResult"];
 export type Diagnostics = Schemas["DeviceDiagnostics"];
 export type ToolsDiff = Schemas["ToolsDiffResponse"];
+// GET /devices/{h}/features — tools, resources and prompts from the cached manifest, with
+// or without a running pod. The same endpoint `device-mcp devices show` reads.
+export type DeviceFeatures = Schemas["DeviceFeatures"];
+export type FeatureResource = Schemas["FeatureResource"];
+export type FeaturePrompt = Schemas["FeaturePrompt"];
 
 // Register/update request body. The gateway's POST/PUT body has no named OpenAPI
 // schema, so it's declared here. PUT preserves any field that is omitted (including

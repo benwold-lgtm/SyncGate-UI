@@ -10,6 +10,7 @@ import type {
   ClaimPayload,
   DeviceTypeDetail,
   DeviceTypeListResponse,
+  DeviceFeatures,
   DeviceFull,
   DeviceMutation,
   DevicePayload,
@@ -85,6 +86,7 @@ export const api = {
   getDevice: (hostname: string) => req<DeviceFull>("GET", `/api/devices/${hostname}`),
   diagnostics: (hostname: string) => req<Diagnostics>("GET", `/api/devices/${hostname}/diagnostics`),
   tools: (hostname: string) => req<ToolsResponse>("GET", `/api/devices/${hostname}/tools`),
+  features: (hostname: string) => req<DeviceFeatures>("GET", `/api/devices/${hostname}/features`),
   toolsDiff: (hostname: string) => req<ToolsDiff>("GET", `/api/devices/${hostname}/tools/diff`),
   // --- backup / restore (ADR-0011) -------------------------------------------
   // Step one of two. Mints the archive, stages it on the session for 120s and returns the

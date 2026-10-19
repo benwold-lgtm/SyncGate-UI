@@ -31,7 +31,7 @@ allowed calls upstream.
 | Path | What |
 |------|------|
 | `bff/` | FastAPI BFF — `auth` (login/logout/me), `api` (proxy: overview, device CRUD incl. `PUT`, per-device diagnostics + tools, endpoint-fingerprint approval, dead-letter inspect/replay/drain, metrics summary, Prometheus/Loki + monitoring meta), session + role gating. Tests included. |
-| `web/` | React + Vite + TypeScript SPA — login, device list + counts, a **full register/edit form** (auth `api_key`/`oauth2`, `spec_url`, rate limit; create via `POST`, edit via `PUT`), remove, a **device-detail panel** (diagnostics + **endpoint fingerprint** + tool explorer + dead-letter queue), and a **Monitoring view** (critical-metric tiles + central-monitoring pointers + recent logs). Typed client (`src/api.ts`) over the BFF. |
+| `web/` | React + Vite + TypeScript SPA — login, device list + counts, a **full register/edit form** (auth `api_key`/`oauth2`, `spec_url`, rate limit; create via `POST`, edit via `PUT`), remove, a **device-detail panel** (diagnostics + **endpoint fingerprint** + tools, resources and prompts + dead-letter queue), and a **Monitoring view** (critical-metric tiles + central-monitoring pointers + recent logs). Typed client (`src/api.ts`) over the BFF. |
 | `deploy/kubernetes/` | Own namespace, BFF + web Deployments/Services, Ingress, NetworkPolicies (BFF egress to gateway/Prometheus/Loki; web egress to BFF only), kustomization. Secrets via `secret.example.yaml`. |
 | `docker-compose.yml` | Local build/preview of BFF + web. |
 
@@ -289,7 +289,11 @@ sessions, so the UI and gateway authorization can't drift.
 ## Roadmap (phasing)
 
 1. **Device management** ✅ — list/remove over the gateway REST API, status from `/admin/overview`.
-2. **Device detail** ✅ — per-device diagnostics ("why is my device down?"), a tool explorer (the generated MCP tools + their input schemas), and a **recent tool-set change** panel (added/removed/changed + breaking flag), from `/devices/{h}/diagnostics`, `/devices/{h}/tools`, and `/devices/{h}/tools/diff`.
+2. **Device detail** ✅ — per-device diagnostics ("why is my device down?"), everything the device exposes (its **tools** with input schemas, **resources** and **prompts**, plus the server name and version), and a **recent tool-set change** panel (added/removed/changed + breaking flag), from `/devices/{h}/diagnostics`, `/devices/{h}/features`, and `/devices/{h}/tools/diff`.
+   - `/features` reads the gateway's cached manifest, so a device whose pod is **down** still shows what it offers. Its tools are listed but cannot be run until it is serving again.
+   - It distinguishes three empty states that would otherwise look alike: *nothing cached* (features unknown), *not discovered* (the gateway collects only tools from a proxied MCP server), and *none*.
+   - It is the same endpoint the gateway's `device-mcp devices show` CLI reads, so the console and the CLI cannot disagree about a device.
+   - Against a gateway without `/features` (0.3.8 and earlier), the view falls back to `/devices/{h}/tools` (active pod required) and shows no resources or prompts.
 3. **Register / edit** ✅ — a full create + edit form (auth `api_key`/`oauth2`, `spec_url`, rate limit), `POST` to register and `PUT` to edit; edit pre-fills from the gateway and omits `auth` by default so stored credentials are preserved.
 4. **Monitoring + DLQ** ✅ — a lightweight native monitoring view: critical at-a-glance metric tiles (Prometheus instant queries) + a recent-logs panel (Loki LogQL), both proxied through the BFF, plus first-class pointers to **central monitoring** (the gateway's `:9100/metrics` scrape endpoint and an optional Grafana link); intentionally not a full monitoring app. Plus a per-device **dead-letter queue** panel in device detail (inspect any session; replay/drain admin-only; distributed mode).
 5. **Federated identity** ✅ — OIDC SSO at the BFF (Authorization Code + PKCE) with per-user
