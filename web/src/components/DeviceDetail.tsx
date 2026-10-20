@@ -344,6 +344,14 @@ function Resources({ features }: { features: DeviceFeatures }) {
   );
 }
 
+// "args: unit (required), detail" — the same required flag an MCP client sees on prompts/list.
+function promptArgs(pr: FeaturePrompt): string {
+  const args = pr.arguments ?? [];
+  if (!args.length) return "no arguments";
+  const required = new Set(pr.required_arguments ?? []);
+  return `args: ${args.map((a) => (required.has(a) ? `${a} (required)` : a)).join(", ")}`;
+}
+
 function Prompts({ features }: { features: DeviceFeatures }) {
   const list: FeaturePrompt[] = features.prompts ?? [];
   return (
@@ -366,9 +374,7 @@ function Prompts({ features }: { features: DeviceFeatures }) {
             {list.map((pr) => (
               <li key={pr.name} style={{ borderTop: `1px solid ${ui.rule}`, padding: "6px 0" }}>
                 <code style={{ fontWeight: 600 }}>{pr.name}</code>{" "}
-                <span style={{ color: ui.inkSoft, fontSize: 13 }}>
-                  {(pr.arguments ?? []).length ? `args: ${(pr.arguments ?? []).join(", ")}` : "no arguments"}
-                </span>
+                <span style={{ color: ui.inkSoft, fontSize: 13 }}>{promptArgs(pr)}</span>
                 {pr.description && <div style={{ color: ui.inkSoft, fontSize: 13 }}>{pr.description}</div>}
                 {pr.template && (
                   <details style={{ marginTop: 4 }}>

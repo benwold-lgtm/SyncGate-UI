@@ -273,7 +273,13 @@ const FEATURES = {
     },
   ],
   prompts: [
-    { name: "what_is_sensor", description: "Describe the sensor", template: "You are given…", arguments: [] },
+    {
+      name: "what_is_sensor",
+      description: "Describe the sensor",
+      template: "You are given…",
+      arguments: [],
+      required_arguments: [],
+    },
   ],
 };
 
@@ -388,7 +394,15 @@ describe("DeviceDetail proxied resources and prompts (gateway ADR-0028)", () => 
       discovered: { tools: true, resources: true, prompts: true },
       tools: [{ name: "add", description: "Add", schema: {}, source: "proxy", method: "", path: "" }],
       resources: [{ uri: "ref://status", name: "status", description: "Status", mime_type: "text/plain" }],
-      prompts: [{ name: "summarise_reading", description: "Summarise", template: "", arguments: ["unit"] }],
+      prompts: [
+        {
+          name: "summarise_reading",
+          description: "Summarise",
+          template: "",
+          arguments: ["unit", "detail"],
+          required_arguments: ["unit"],
+        },
+      ],
     });
     render(<DeviceDetail hostname="sensor-1" canWrite={false} onClose={vi.fn()} />);
 
@@ -396,5 +410,7 @@ describe("DeviceDetail proxied resources and prompts (gateway ADR-0028)", () => 
     expect(screen.getByText("summarise_reading")).toBeInTheDocument();
     expect(screen.getByText(/Served by the upstream MCP server/)).toBeInTheDocument();
     expect(screen.queryByText("Template")).not.toBeInTheDocument(); // no stored text for a proxied prompt
+    // The required flag MCP clients see on prompts/list, shown to the operator too.
+    expect(screen.getByText("args: unit (required), detail")).toBeInTheDocument();
   });
 });
