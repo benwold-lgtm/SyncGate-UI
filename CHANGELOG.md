@@ -16,6 +16,11 @@ While the project is `0.x`, **minor releases may include breaking changes.**
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-20
+
+Pairs with gateway **0.3.9**, the release that adds `GET /v1/devices/{h}/features`. It still
+runs against 0.3.8 and earlier, with the reduced view described under *Compatibility*.
+
 ### Added
 
 - **Device detail shows every device's tools, resources and prompts**, plus the server's own
@@ -40,15 +45,15 @@ While the project is `0.x`, **minor releases may include breaking changes.**
 
 ### Changed
 
-- **The gateway contract snapshot (`web/gateway.openapi.json`) moves from 0.3.5 to the gateway's
-  current API**, adding `DeviceFeatures` and its parts. The type-check passed against it with no
+- **The gateway contract snapshot (`web/gateway.openapi.json`) moves from 0.3.5 to 0.3.9**,
+  adding `DeviceFeatures` and its parts. The type-check passed against it with no
   other change.
 
 ### Compatibility
 
 - Works against a gateway **without** `/features` (0.3.8 and earlier): the view falls back to
   `/devices/{h}/tools`, which needs an active pod, and shows no resources or prompts. Full drill-down
-  needs the gateway release that adds `/features`.
+  needs gateway 0.3.9.
 
 ## [0.2.0] - 2026-09-02
 
@@ -140,4 +145,5 @@ console posts to `POST /v1/admin/restore`, which no longer exists.
   [SyncGate-Lite](https://github.com/benwold-lgtm/SyncGate-Lite). This repo still builds the
   images Lite runs.
 
+[0.3.0]: https://github.com/benwold-lgtm/SyncGate-UI/releases/tag/v0.3.0
 [0.2.0]: https://github.com/benwold-lgtm/SyncGate-UI/releases/tag/v0.2.0
