@@ -291,7 +291,7 @@ sessions, so the UI and gateway authorization can't drift.
 1. **Device management** ✅ — list/remove over the gateway REST API, status from `/admin/overview`.
 2. **Device detail** ✅ — per-device diagnostics ("why is my device down?"), everything the device exposes (its **tools** with input schemas, **resources** and **prompts**, plus the server name and version), and a **recent tool-set change** panel (added/removed/changed + breaking flag), from `/devices/{h}/diagnostics`, `/devices/{h}/features`, and `/devices/{h}/tools/diff`.
    - `/features` reads the gateway's cached manifest, so a device whose pod is **down** still shows what it offers. Its tools are listed but cannot be run until it is serving again.
-   - It distinguishes three empty states that would otherwise look alike: *nothing cached* (features unknown), *not discovered* (the gateway collects only tools from a proxied MCP server), and *none*.
+   - It distinguishes three empty states that would otherwise look alike: *nothing cached* (features unknown), *not collected* (a proxied MCP server whose resources or prompts the gateway could not list, or a device discovered by an older gateway), and *none*.
    - It is the same endpoint the gateway's `device-mcp devices show` CLI reads, so the console and the CLI cannot disagree about a device.
    - Against a gateway without `/features` (0.3.8 and earlier), the view falls back to `/devices/{h}/tools` (active pod required) and shows no resources or prompts.
 3. **Register / edit** ✅ — a full create + edit form (auth `api_key`/`oauth2`, `spec_url`, rate limit), `POST` to register and `PUT` to edit; edit pre-fills from the gateway and omits `auth` by default so stored credentials are preserved.
