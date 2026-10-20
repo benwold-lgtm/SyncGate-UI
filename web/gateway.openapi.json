@@ -354,7 +354,7 @@
     "/v1/devices/{hostname}/features": {
       "get": {
         "summary": "Get Device Features",
-        "description": "Everything a device exposes \u2014 tools, resources and prompts \u2014 for inspection.\n\nRead from the registry's cached manifest, so unlike ``/tools`` it answers for a device\nwhose pod is down: that is when an operator most needs to see what the device offers.\nThe UI and the ``device-mcp devices`` CLI both read this one endpoint, so they cannot\ndisagree about a device. ``discovered`` says which feature kinds were looked for at all\n(a proxied MCP server's resources and prompts are not, today).",
+        "description": "Everything a device exposes \u2014 tools, resources and prompts \u2014 for inspection.\n\nRead from the registry's cached manifest, so unlike ``/tools`` it answers for a device\nwhose pod is down: that is when an operator most needs to see what the device offers.\nThe UI and the ``device-mcp devices`` CLI both read this one endpoint, so they cannot\ndisagree about a device. ``discovered`` says per kind whether it was collected \u2014 see\n``FeatureDiscovery``.",
         "operationId": "get_device_features_v1_devices__hostname__features_get",
         "security": [
           {
@@ -2393,7 +2393,7 @@
         },
         "type": "object",
         "title": "FeatureDiscovery",
-        "description": "Which feature kinds the gateway collects for this kind of device.\n\n``False`` means *not looked for*, not *none found* \u2014 an empty list beside ``False`` says\nnothing about the device. Today a proxied MCP server's tools are discovered but its\nresources and prompts are not; an OpenAPI device has all three derived from its spec."
+        "description": "Whether each feature kind was collected for this device.\n\n``False`` means *not collected*, not *none found* \u2014 an empty list beside ``False`` says\nnothing about the device. An OpenAPI device derives all three from its spec. A proxied MCP\nserver (ADR-0028) reports ``False`` for a kind whose listing failed or exceeded the cap, or\nwhen its manifest predates ADR-0028. A server that does not advertise a kind has none:\n``True`` with an empty list."
       },
       "FeaturePrompt": {
         "properties": {
@@ -2417,6 +2417,14 @@
             },
             "type": "array",
             "title": "Arguments",
+            "default": []
+          },
+          "required_arguments": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Required Arguments",
             "default": []
           }
         },
