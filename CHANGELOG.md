@@ -16,6 +16,15 @@ While the project is `0.x`, **minor releases may include breaking changes.**
 
 ## [Unreleased]
 
+### Changed
+
+- **The console no longer sends `transport` on any device write**, ahead of gateway 0.4.0,
+  which refuses the key with a 400 (gateway roadmap decision 6). The device form stopped
+  setting it, a catalog claim no longer copies the device type's `transport` into the
+  registration, and the BFF drops the key from register and edit bodies, so a browser still
+  running an older bundle keeps working. Nothing changes against gateway 0.3.x: `"sse"` was the
+  only value it accepted, and it is also the default when the key is absent.
+
 ## [0.3.0] - 2026-10-20
 
 Pairs with gateway **0.3.9**, the release that adds `GET /v1/devices/{h}/features`. It still

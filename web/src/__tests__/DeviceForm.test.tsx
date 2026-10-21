@@ -106,7 +106,6 @@ describe("DeviceForm", () => {
       base_url: "http://new.local",
       upstream_kind: "openapi",
       spec_url: null,
-      transport: "sse",
     });
     // No auth/auth_type in the payload → gateway preserves stored credentials.
     expect(updateDevice.mock.calls[0][1]).not.toHaveProperty("auth");

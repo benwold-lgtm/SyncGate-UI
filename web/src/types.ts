@@ -38,9 +38,9 @@ export type DevicePayload = {
   // null — leaving it out carries the old value forward into a combination the gateway
   // refuses ("spec_url does not apply to upstream_kind 'mcp'").
   spec_url?: string | null;
-  // How CLIENTS reach this device through the gateway. Not `upstream_transport`, which is how
-  // the gateway reaches the device; see `upstream_kind` below.
-  transport?: string;
+  // No `transport`. It only ever accepted "sse", which is also its default, and gateway 0.4.0
+  // refuses the key outright (its roadmap decision 6): every device is served on
+  // /v1/devices/{h}/mcp, so the field selects nothing. Omitting it works on every gateway.
   // ADR-0009's discriminator. "openapi" = the gateway translates an OpenAPI document into
   // tools; "mcp" = the upstream is already an MCP server and the gateway proxies it.
   //

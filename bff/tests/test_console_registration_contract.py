@@ -75,18 +75,45 @@ def test_the_form_body_is_one_the_gateway_would_accept(console, name):
 
 
 def test_the_relay_does_not_edit_the_body_on_the_way_through():
-    """`POST /api/devices` forwards verbatim, which is the assumption the fixture rests on.
+    """`POST /api/devices` forwards the body unchanged apart from dropping `transport`, which
+    is the assumption the fixture rests on.
 
     Asserted directly rather than inferred from the tests above: if the BFF ever started
-    adding or dropping a field, those would still pass while the fixture stopped describing
-    what the gateway actually receives.
+    adding or dropping another field, those would still pass while the fixture stopped
+    describing what the gateway actually receives.
     """
     import inspect
 
     from app.routers import api
 
     source = inspect.getsource(api.register_device)
-    assert "json=body" in source, "POST /devices no longer relays the request body unchanged"
+    assert "_without_transport(await request.json())" in source and "json=body" in source
+    assert inspect.getsource(api._without_transport).count(".pop(") == 1
+
+
+@pytest.mark.parametrize("method", ["post", "put"])
+def test_transport_from_an_older_spa_bundle_is_dropped_not_relayed(console, method):
+    """A browser still running a bundle cached from before the form stopped sending it.
+    Gateway 0.4.0 refuses the key (its roadmap decision 6), and every earlier gateway accepts
+    only "sse", which is the default when the key is absent: dropping it loses nothing."""
+    client, app = console
+    gateway = ContractGateway(status=201 if method == "post" else 200)
+    app.state.gateway.request = gateway.request
+    payload = {**CASES[sorted(CASES)[0]]["payload"], "transport": "sse"}
+
+    if method == "post":
+        resp = client.post("/api/devices", json=payload)
+    else:
+        resp = client.put("/api/devices/sensor-1", json=payload)
+
+    assert resp.status_code in (200, 201), gateway.refusals
+    assert gateway.refusals == []
+
+
+def test_the_double_refuses_transport_on_presence():
+    """Guards the guard: the rule the test above relies on."""
+    body = dict(CASES[sorted(CASES)[0]]["payload"])
+    assert check_registration({**body, "transport": "sse"}) is not None
 
 
 @pytest.mark.parametrize("name", sorted(CASES))
