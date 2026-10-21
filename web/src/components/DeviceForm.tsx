@@ -103,8 +103,7 @@ export function DeviceForm({
       // equivalent to omitting it, so one rule covers both modes.
       p.spec_url = null;
     }
-    // `upstream_transport` is deliberately never sent — see `DevicePayload`.
-    p.transport = "sse";
+    // Neither `upstream_transport` nor `transport` is sent — see `DevicePayload`.
     if (rateLimit.trim()) p.rate_limit_rps = Number(rateLimit);
     // The pin stays create-only: the gateway now REFUSES it on an update rather than
     // ignoring it, because writing a key here is the quiet version of laundering one past

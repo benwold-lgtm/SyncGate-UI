@@ -108,9 +108,22 @@ async def device_tools_diff(hostname: str, request: Request) -> JSONResponse:
     return _passthrough(await relay_get(request, f"/devices/{hostname}/tools/diff"))
 
 
+def _without_transport(body: Any) -> Any:
+    """Drop the client-facing ``transport`` field before relaying a device write.
+
+    Gateway 0.4.0 refuses the key on ``POST``/``PUT /v1/devices`` (its roadmap decision 6);
+    every earlier gateway accepts only ``"sse"``, which is also the default when it is absent.
+    So dropping it is lossless on every version, and it keeps an SPA bundle cached from before
+    this change working against 0.4.0 instead of getting a 400 on every edit.
+    """
+    if isinstance(body, dict):
+        body.pop("transport", None)
+    return body
+
+
 @router.post("/devices", dependencies=[_admin])
 async def register_device(request: Request) -> JSONResponse:
-    body = await request.json()
+    body = _without_transport(await request.json())
     resp = await relay_request(request, "POST", "/devices", json=body)
     return await _audited(request, resp, "device.register", target=str(body.get("hostname") or "-"))
 
@@ -119,7 +132,7 @@ async def register_device(request: Request) -> JSONResponse:
 async def update_device(hostname: str, request: Request) -> JSONResponse:
     # PUT replaces a device's config; the gateway preserves any field the body omits
     # (including stored credentials when `auth` is omitted).
-    body = await request.json()
+    body = _without_transport(await request.json())
     resp = await relay_request(request, "PUT", f"/devices/{hostname}", json=body)
     return await _audited(request, resp, "device.update", target=hostname)
 
@@ -258,7 +271,6 @@ async def claim_device_type(type_id: str, request: Request) -> JSONResponse:
     merged: dict[str, Any] = {
         "hostname": hostname,
         "base_url": base_url,
-        "transport": current["transport"],
         "upstream_kind": current["upstream_kind"],
         "auth_type": current["auth_kind"],
     }
@@ -283,8 +295,8 @@ async def claim_device_type(type_id: str, request: Request) -> JSONResponse:
     if current["auth_kind"] != "none":
         auth = dict(body.get("auth") or {})
         # WHERE the key goes is the provider's fact; the key itself is the tenant's. So the
-        # curated position overrides whatever the browser sent, exactly as `transport` and
-        # `spec_path` already do — a tenant who guesses `Authorization` instead of `X-API-Key`
+        # curated position overrides whatever the browser sent, exactly as `spec_path`
+        # already does — a tenant who guesses `Authorization` instead of `X-API-Key`
         # gets a 401 at first contact that reads like a bad credential, not a misplaced one.
         #
         # Only when the curator actually said. `None` means a version predating these fields,

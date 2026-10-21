@@ -62,9 +62,11 @@ def check_registration(body: dict[str, Any], *, require_references: bool = False
     Mirrors `registry/validation.py`. Kept as a function rather than folded into the fake so a
     test can assert against the contract directly, and so the transcription has one home.
     """
-    transport = body.get("transport", "sse")
-    if transport != "sse":
-        return f"Transport '{transport}' is not supported in gateway mode; use 'sse'"
+    # The strictest rule any supported gateway applies: 0.4.0 refuses the key on presence
+    # (roadmap decision 6), and 0.3.x accepted only "sse". The console never sends it, so the
+    # fake holds it to the version that would catch a regression.
+    if "transport" in body:
+        return "transport was removed in 0.4.0; omit it (see docs/upgrade.md)"
 
     kind = body.get("upstream_kind", "openapi")
     if kind not in ("openapi", "mcp"):
@@ -118,6 +120,8 @@ def check_update(body: dict[str, Any]) -> Optional[str]:
     `fingerprint_policy` is deliberately NOT in the refused list: on an update it is honoured,
     and an explicit ``None`` clears the override. Only its *vocabulary* is checked.
     """
+    if "transport" in body:  # as on registration: refused on presence from 0.4.0
+        return "transport was removed in 0.4.0; omit it (see docs/upgrade.md)"
     for field in _REGISTRATION_ONLY_FIELDS:
         if body.get(field):
             return (

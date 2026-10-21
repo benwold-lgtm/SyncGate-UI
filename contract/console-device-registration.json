@@ -19,7 +19,6 @@
         "hostname": "sensor-1",
         "base_url": "http://sensor-1.local",
         "upstream_kind": "openapi",
-        "transport": "sse",
         "auth_type": "api_key",
         "auth": {
           "api_key": "secret-key",
@@ -35,7 +34,6 @@
         "base_url": "http://mcp-1.local/mcp",
         "upstream_kind": "mcp",
         "spec_url": null,
-        "transport": "sse",
         "auth_type": "none"
       }
     }
@@ -47,7 +45,6 @@
         "base_url": "http://sensor-1.local",
         "upstream_kind": "openapi",
         "spec_url": null,
-        "transport": "sse",
         "fingerprint_policy": "enforce"
       }
     },
@@ -57,7 +54,6 @@
         "base_url": "http://sensor-1.local",
         "upstream_kind": "openapi",
         "spec_url": null,
-        "transport": "sse",
         "fingerprint_policy": null
       }
     },
@@ -67,7 +63,6 @@
         "base_url": "http://sensor-1.local",
         "upstream_kind": "openapi",
         "spec_url": null,
-        "transport": "sse",
         "rate_limit_rps": 7
       }
     }

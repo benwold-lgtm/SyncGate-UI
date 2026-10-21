@@ -247,7 +247,8 @@ def test_claim_merges_the_template_with_the_tenants_own_fields(console):
     assert body["base_url"] == "https://sensor-01.local/api/"
     assert body["auth"] == {"api_key": "s3cr3t"}
     # The type's template fields, not something the tenant supplied.
-    assert body["transport"] == "sse"
+    # Never forwarded: gateway 0.4.0 refuses the key, and 0.3.x defaulted it.
+    assert "transport" not in body
     assert body["upstream_kind"] == "openapi"
     assert body["auth_type"] == "api_key"
     assert body["fingerprint_policy"] == "enforce"
@@ -429,7 +430,7 @@ def _curated(**over) -> dict:
 
 
 def test_the_curated_api_key_position_overrides_what_the_browser_sent(console):
-    """Overridden, not merely defaulted. `transport` and `spec_path` already work this way —
+    """Overridden, not merely defaulted. `spec_path` already works this way —
     a curated fact is not something a claim form gets to contradict."""
     client, app = console
     _login(client)
