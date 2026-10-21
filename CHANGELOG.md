@@ -16,6 +16,11 @@ While the project is `0.x`, **minor releases may include breaking changes.**
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-21
+
+Runs against gateway **0.3.9** and the upcoming **0.4.0**. Upgrade the console to 0.3.1
+**before** the gateway goes to 0.4.0: an older console's device edits get a 400 there.
+
 ### Changed
 
 - **The console no longer sends `transport` on any device write**, ahead of gateway 0.4.0,
@@ -154,5 +159,6 @@ console posts to `POST /v1/admin/restore`, which no longer exists.
   [SyncGate-Lite](https://github.com/benwold-lgtm/SyncGate-Lite). This repo still builds the
   images Lite runs.
 
+[0.3.1]: https://github.com/benwold-lgtm/SyncGate-UI/releases/tag/v0.3.1
 [0.3.0]: https://github.com/benwold-lgtm/SyncGate-UI/releases/tag/v0.3.0
 [0.2.0]: https://github.com/benwold-lgtm/SyncGate-UI/releases/tag/v0.2.0
